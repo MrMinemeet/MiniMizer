@@ -45,3 +45,4 @@ Integer types are written as `INTEGER`. Comments start with `//` and go to the e
 
 ---
 * Full Task Description: [Project_2.pdf](https://ssw.jku.at/Teaching/Lectures/ACC/Project_2.pdf)
+* COCO/R: [Homepage](https://ssw.jku.at/Research/Projects/Coco/)

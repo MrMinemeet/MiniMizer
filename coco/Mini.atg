@@ -1,0 +1,38 @@
+COMPILER Mini
+
+CHARACTERS
+	// Declare character sets such as letters or digits. Example:
+	letter    = 'a' .. 'z' + 'A' .. 'Z'.
+	digit     = '0' .. '9'.
+	sign      = '+' + '-'.
+
+TOKENS
+    ident   = letter {letter | digit}.
+    number  = digit {digit}.
+
+COMMENTS FROM "//" TO "\n"          /* Maybe some comments are wanted in the grammar file */
+IGNORE "\r" + "\n" + "\t"            /* ignore certain chars */
+
+PRODUCTIONS
+    Mini        = "PROGRAM" {VarDecl} "BEGIN" StatSeq "END" "." .
+    VarDecl     = "VAR" {IdListDecl ";"} .
+    IdListDecl  = ident {"," ident} ":" Type .
+    Type        = ident | "ARRAY" number "OF" Type .
+    StatSeq     = Statement {";" Statement} .
+    Statement   =
+        [ Designator ":=" Expression
+        | "IF" Condition "THEN" StatSeq {"ELSIF" Condition "THEN" StatSeq} ["ELSE" StatSeq] "END"
+        | "WHILE" Condition "DO" StatSeq "END"
+        | "READ" Designator
+        | "WRITE" Expression
+        ] .
+    Condition   = Expression Relop Expression .
+    Expression  = [Addop] Term {Addop Term} .
+    Term        = Factor {Mulop Factor} .
+    Factor      = Designator | number | "(" Expression ")" .
+    Designator  = ident {"[" Expression "]"}.
+    Relop       = "=" | "#" | "<" | ">" | ">=" | "<=".
+    Addop       = "+" | "-".
+    Mulop       = "*" | "/" | "%".
+
+END Mini.
