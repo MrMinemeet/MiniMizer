@@ -1,0 +1,21 @@
+PROGRAM
+VAR
+    a: ARRAY 10 OF ARRAY 10 OF INTEGER;
+    i, j: INTEGER;
+BEGIN
+    //--- read some data
+    i := 0;
+    WHILE i < 10 DO
+    j := 0;
+    WHILE j < 10 DO READ a[i][j]; j := j + 1 END;
+        i := i + 1
+    END;
+
+    //--- add 1 to every value
+    i := 0;
+    WHILE i < 10 DO
+        j := 0;
+        WHILE j < 10 DO a[i][j] := a[i][j] + 1; j := j + 1 END;
+        i := i + 1
+    END
+END.
