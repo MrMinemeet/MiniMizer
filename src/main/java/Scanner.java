@@ -33,10 +33,10 @@ class Buffer {
 	private int bufLen;   // length of buffer
 	private int fileLen;  // length of input stream (may change if stream is no file)
 	private int bufPos;      // current position in buffer
-	private RandomAccessFile file; // input stream (seekable)
-	private InputStream stream; // growing input stream (e.g.: console, network)
+	private java.io.RandomAccessFile file; // input stream (seekable)
+	private java.io.InputStream stream; // growing input stream (e.g.: console, network)
 
-	public Buffer(InputStream s) {
+	public Buffer(java.io.InputStream s) {
 		stream = s;
 		fileLen = bufLen = bufStart = bufPos = 0;
 		buf = new byte[MIN_BUFFER_LENGTH];
@@ -44,7 +44,7 @@ class Buffer {
 
 	public Buffer(String fileName) {
 		try {
-			file = new RandomAccessFile(fileName, "r");
+			file = new java.io.RandomAccessFile(fileName, "r");
 			fileLen = (int) file.length();
 			bufLen = Math.min(fileLen, MAX_BUFFER_LENGTH);
 			buf = new byte[bufLen];
@@ -52,7 +52,7 @@ class Buffer {
 			if (fileLen > 0) setPos(0); // setup buffer to position 0 (start)
 			else bufPos = 0; // index 0 is already after the file, thus setPos(0) is invalid
 			if (bufLen == fileLen) Close();
-		} catch (IOException e) {
+		} catch (java.io.IOException e) {
 			throw new FatalError("Could not open file " + fileName);
 		}
 	}
@@ -81,7 +81,7 @@ class Buffer {
 			try {
 				file.close();
 				file = null;
-			} catch (IOException e) {
+			} catch (java.io.IOException e) {
 				throw new FatalError(e.getMessage());
 			}
 		}
@@ -143,7 +143,7 @@ class Buffer {
 				file.seek(value);
 				bufLen = file.read(buf);
 				bufStart = value; bufPos = 0;
-			} catch(IOException e) {
+			} catch(java.io.IOException e) {
 				throw new FatalError(e.getMessage());
 			}
 		} else {
@@ -170,7 +170,7 @@ class Buffer {
 		
 		int read;
 		try { read = stream.read(buf, bufLen, free); }
-		catch (IOException ioex) { throw new FatalError(ioex.getMessage()); }
+		catch (java.io.IOException ioex) { throw new FatalError(ioex.getMessage()); }
 		
 		if (read > 0) {
 			fileLen = bufLen = (bufLen + read);
@@ -225,20 +225,20 @@ class UTF8Buffer extends Buffer {
 class StartStates {
 	private static class Elem {
 		public int key, val;
-		public Elem next;
+		public StartStates.Elem next;
 		public Elem(int key, int val) { this.key = key; this.val = val; }
 	}
 
-	private Elem[] tab = new Elem[128];
+	private StartStates.Elem[] tab = new StartStates.Elem[128];
 
 	public void set(int key, int val) {
-		Elem e = new Elem(key, val);
+		StartStates.Elem e = new StartStates.Elem(key, val);
 		int k = key % 128;
 		e.next = tab[k]; tab[k] = e;
 	}
 
 	public int state(int key) {
-		Elem e = tab[key % 128];
+		StartStates.Elem e = tab[key % 128];
 		while (e != null && e.key != key) e = e.next;
 		return e == null ? 0: e.val;
 	}
@@ -264,7 +264,7 @@ public class Scanner {
 	int line;          // line number of current character
 	int oldEols;       // EOLs that appeared in a comment;
 	static final StartStates start; // maps initial token character to start state
-	static final Map literals;      // maps literal strings to literal kinds
+	static final java.util.Map literals;      // maps literal strings to literal kinds
 
 	Token tokens;      // list of tokens already peeked (first token is a dummy)
 	Token pt;          // current peek token
@@ -275,7 +275,7 @@ public class Scanner {
 
 	static {
 		start = new StartStates();
-		literals = new HashMap();
+		literals = new java.util.HashMap();
 		for (int i = 65; i <= 90; ++i) start.set(i, 1);
 		for (int i = 97; i <= 122; ++i) start.set(i, 1);
 		for (int i = 48; i <= 57; ++i) start.set(i, 2);
@@ -319,7 +319,7 @@ public class Scanner {
 		Init();
 	}
 	
-	public Scanner(InputStream s) {
+	public Scanner(java.io.InputStream s) {
 		buffer = new Buffer(s);
 		Init();
 	}
