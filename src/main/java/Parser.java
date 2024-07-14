@@ -1,9 +1,10 @@
-
+import java.util.ArrayList;
+import java.util.List;
+import symtab.Obj;
+import symtab.Struct;
+import symtab.SymTab;
 
 public class Parser {
-	public static final int _EOF = 0;
-	public static final int _ident = 1;
-	public static final int _number = 2;
 	public static final int maxT = 37;
 
 	static final boolean _T = true;
@@ -17,7 +18,7 @@ public class Parser {
 	public Scanner scanner;
 	public Errors errors;
 
-	
+	private SymTab symTab = new SymTab(this);
 
 	public Parser(Scanner scanner) {
 		this.scanner = scanner;
@@ -78,82 +79,100 @@ public class Parser {
 	}
 	
 	void Mini() {
-		Expect(3);
-		while (la.kind == 7) {
+		Expect(Token.IDs.PROGRAM);
+		// Open "program" scope
+		final Obj program = symTab.insert(Obj.Kind.PROGRAM, t.val, SymTab.Companion.getNO_TYPE());
+		symTab.openScope();
+
+		while (la.kind == Token.IDs.VAR) {
 			VarDecl();
 		}
-		Expect(4);
+		Expect(Token.IDs.BEGIN);
 		StatSeq();
-		Expect(5);
-		Expect(6);
+		Expect(Token.IDs.END);
+		Expect(Token.IDs.DOT);
+
+		// Close "program" scope
+		program.getLocals().putAll(symTab.getCurScope().getImmutableLocals());
+		symTab.closeScope();
 	}
 
 	void VarDecl() {
-		Expect(7);
-		while (la.kind == 1) {
+		Expect(Token.IDs.VAR);
+		while (la.kind == Token.IDs.IDENT) {
 			IdListDecl();
-			Expect(8);
+			Expect(Token.IDs.SEMICOLON);
 		}
 	}
 
 	void StatSeq() {
 		Statement();
-		while (la.kind == 8) {
+		while (la.kind == Token.IDs.SEMICOLON) {
 			Get();
 			Statement();
 		}
 	}
 
 	void IdListDecl() {
-		Expect(1);
-		while (la.kind == 9) {
-			Get();
-			Expect(1);
+		final List<Token> ids = new ArrayList<>();
+		Expect(Token.IDs.IDENT);
+		ids.add(t);
+		while (la.kind == Token.IDs.COMMA) {
+			Get(); // Remove `","`
+			Expect(Token.IDs.IDENT);
+			ids.add(t);
 		}
-		Expect(10);
-		Type();
+		Expect(Token.IDs.COLON);
+		final Struct varType = Type();
+		for (Token id : ids) {
+			System.out.format("Inserting variable '%s' of type '%s'\n", id.val, varType);
+			symTab.insert(Obj.Kind.VARIABLE, id.val, varType);
+		}
 	}
 
-	void Type() {
-		if (la.kind == 1) {
+	Struct Type() {
+		if (la.kind == Token.IDs.IDENT) {
 			Get();
-		} else if (la.kind == 11) {
+			return SymTab.Companion.getINT_TYPE();
+		} else if (la.kind == Token.IDs.ARRAY) {
 			Get();
-			Expect(2);
-			Expect(12);
-			Type();
+			Expect(Token.IDs.NUMBER);
+			Expect(Token.IDs.OF);
+			Struct subType = Type();
+			return new Struct(Struct.Kind.ARRAY, subType);
 		} else SynErr(38);
+		throw new IllegalStateException("Unknown type of look-ahead");
 	}
 
 	void Statement() {
 		if (StartOf(1)) {
-			if (la.kind == 1) {
+			if (la.kind == Token.IDs.IDENT) {
 				Designator();
-				Expect(13);
+				Expect(Token.IDs.ASSIGN);
 				Expression();
-			} else if (la.kind == 14) {
+			} else if (la.kind == Token.IDs.IF) {
 				Get();
 				Condition();
-				Expect(15);
+				Expect(Token.IDs.THEN);
 				StatSeq();
-				while (la.kind == 16) {
+				while (la.kind == Token.IDs.ELSIF) {
 					Get();
 					Condition();
-					Expect(15);
+					Expect(Token.IDs.THEN);
 					StatSeq();
 				}
-				if (la.kind == 17) {
+				if (la.kind == Token.IDs.ELSE) {
 					Get();
 					StatSeq();
 				}
-				Expect(5);
-			} else if (la.kind == 18) {
+				Expect(Token.IDs.END);
+			} else if (la.kind == Token.IDs.WHILE) {
 				Get();
 				Condition();
-				Expect(19);
+				Expect(Token.IDs.DO);
 				StatSeq();
-				Expect(5);
-			} else if (la.kind == 20) {
+				Expect(Token.IDs.END);
+			} else if (la.kind == Token.IDs.READ) {
 				Get();
 				Designator();
 			} else {
@@ -164,20 +183,20 @@ public class Parser {
 	}
 
 	void Designator() {
-		Expect(1);
-		while (la.kind == 24) {
+		Expect(Token.IDs.IDENT);
+		while (la.kind == Token.IDs.LBRACKET) {
 			Get();
 			Expression();
-			Expect(25);
+			Expect(Token.IDs.RBRACKET);
 		}
 	}
 
 	void Expression() {
-		if (la.kind == 32 || la.kind == 33) {
+		if (la.kind == Token.IDs.PLUS || la.kind == Token.IDs.MINUS) {
 			Addop();
 		}
 		Term();
-		while (la.kind == 32 || la.kind == 33) {
+		while (la.kind == Token.IDs.PLUS || la.kind == Token.IDs.MINUS) {
 			Addop();
 			Term();
 		}
@@ -191,68 +210,55 @@ public class Parser {
 
 	void Relop() {
 		switch (la.kind) {
-		case 26: {
-			Get();
-			break;
-		}
-		case 27: {
-			Get();
-			break;
-		}
-		case 28: {
-			Get();
-			break;
-		}
-		case 29: {
-			Get();
-			break;
-		}
-		case 30: {
-			Get();
-			break;
-		}
-		case 31: {
-			Get();
-			break;
-		}
-		default: SynErr(39); break;
+			case Token.IDs.EQUAL:
+			case Token.IDs.NOT_EQUAL:
+			case Token.IDs.LESS_THAN:
+			case Token.IDs.GREATER_THAN:
+			case Token.IDs.GREATER_EQUAL:
+			case Token.IDs.LESS_EQUAL:
+				Get();
+				break;
+
+			default:
+				SynErr(39);
+				break;
 		}
 	}
 
 	void Addop() {
-		if (la.kind == 32) {
+		if (la.kind == Token.IDs.PLUS) {
 			Get();
-		} else if (la.kind == 33) {
+		} else if (la.kind == Token.IDs.MINUS) {
 			Get();
 		} else SynErr(40);
 	}
 
 	void Term() {
 		Factor();
-		while (la.kind == 34 || la.kind == 35 || la.kind == 36) {
+		while (la.kind == Token.IDs.MULTIPLY || la.kind == Token.IDs.DIVIDE || la.kind == Token.IDs.MODULO) {
 			Mulop();
 			Factor();
 		}
 	}
 
 	void Factor() {
-		if (la.kind == 1) {
+		if (la.kind == Token.IDs.IDENT) {
 			Designator();
-		} else if (la.kind == 2) {
+		} else if (la.kind == Token.IDs.NUMBER) {
 			Get();
-		} else if (la.kind == 22) {
+		} else if (la.kind == Token.IDs.LPAREN) {
 			Get();
 			Expression();
-			Expect(23);
+			Expect(Token.IDs.RPAREN);
 		} else SynErr(41);
 	}
 
 	void Mulop() {
-		if (la.kind == 34) {
+		if (la.kind == Token.IDs.MULTIPLY) {
 			Get();
-		} else if (la.kind == 35) {
+		} else if (la.kind == Token.IDs.DIVIDE) {
 			Get();
-		} else if (la.kind == 36) {
+		} else if (la.kind == Token.IDs.MODULO) {
 			Get();
 		} else SynErr(42);
 	}
@@ -264,7 +270,7 @@ public class Parser {
 		la.val = "";		
 		Get();
 		Mini();
-		Expect(0);
+		Expect(Token.IDs.EOF);
 
 	}
 
