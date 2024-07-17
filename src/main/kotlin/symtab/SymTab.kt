@@ -10,8 +10,12 @@ class SymTab(private val parser: Parser) {
 	}
 
 	// Define universe objects
-	private val intObj: Obj by lazy {
+	val intObj: Obj by lazy {
 		insert(Obj.Kind.TYPE, "int", INT_TYPE)
+	}
+
+	val arrObj: Obj by lazy {
+		insert(Obj.Kind.TYPE, "arr", Struct(Struct.Kind.ARRAY))
 	}
 
 	// Init scope for universe

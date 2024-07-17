@@ -147,9 +147,12 @@ public class Parser {
 	void Statement() {
 		if (StartOf(1)) {
 			if (la.kind == Token.IDs.IDENT) {
-				Designator();
+				Obj designator = Designator();
 				Expect(Token.IDs.ASSIGN);
-				Expression();
+				Obj expr = Expression();
+				if (designator.getType() != expr.getType()) {
+					throw new IllegalStateException("Designator and expression have different types!");
+				}
 			} else if (la.kind == Token.IDs.IF) {
 				Get();
 				Condition();
@@ -182,24 +185,41 @@ public class Parser {
 		}
 	}
 
-	void Designator() {
+	Obj Designator() {
 		Expect(Token.IDs.IDENT);
+		Obj identObj = symTab.find(t.val);
 		while (la.kind == Token.IDs.LBRACKET) {
+			// TODO: Detect if ident access was written to array
 			Get();
 			Expression();
 			Expect(Token.IDs.RBRACKET);
 		}
+		return identObj;
 	}
 
-	void Expression() {
+	Obj Expression() {
+		boolean hasAddop = false;
 		if (la.kind == Token.IDs.PLUS || la.kind == Token.IDs.MINUS) {
 			Addop();
+			hasAddop = true;
 		}
-		Term();
+		Obj term = Term();
+		if (hasAddop && term.getType() != SymTab.Companion.getINT_TYPE()) {
+			throw new IllegalStateException("Type mismatch in expression! Addop requires integer type!");
+		}
+
 		while (la.kind == Token.IDs.PLUS || la.kind == Token.IDs.MINUS) {
 			Addop();
-			Term();
+			Obj other = Term();
+			if (other.getType() != SymTab.Companion.getINT_TYPE()) {
+				throw new IllegalStateException("Type mismatch in expression! Addop requires integer type!");
+			}
+			if (term.getType() != other.getType()) {
+				throw new IllegalStateException("Terms in expression have different types!");
+			}
 		}
+
+		return term;
 	}
 
 	void Condition() {
@@ -233,24 +253,33 @@ public class Parser {
 		} else SynErr(40);
 	}
 
-	void Term() {
-		Factor();
+	Obj Term() {
+		Obj obj = Factor();
 		while (la.kind == Token.IDs.MULTIPLY || la.kind == Token.IDs.DIVIDE || la.kind == Token.IDs.MODULO) {
 			Mulop();
-			Factor();
+			Obj other = Factor();
+			if (obj.getType() != other.getType()) {
+				SemErr("Type mismatch in term");
+			}
 		}
+		return obj;
 	}
 
-	void Factor() {
+	Obj Factor() {
 		if (la.kind == Token.IDs.IDENT) {
 			Designator();
+			// TODO
 		} else if (la.kind == Token.IDs.NUMBER) {
 			Get();
+			return symTab.getIntObj();
 		} else if (la.kind == Token.IDs.LPAREN) {
 			Get();
 			Expression();
 			Expect(Token.IDs.RPAREN);
+			// TODO
 		} else SynErr(41);
+
+		return null;
 	}
 
 	void Mulop() {
