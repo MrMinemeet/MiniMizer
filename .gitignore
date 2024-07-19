@@ -32,3 +32,4 @@ bin/
 .idea/uiDesigner.xml
 
 *.old
+/build/
