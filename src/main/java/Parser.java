@@ -153,6 +153,8 @@ public class Parser {
 				if (designator.getType() != expr.getType()) {
 					throw new IllegalStateException("Designator and expression have different types!");
 				}
+				System.out.printf("(Line: %d) Assigning '%s' to '%s'\n", scanner.getLineNr(), expr.getName(), designator.getName());
+
 			} else if (la.kind == Token.IDs.IF) {
 				Get();
 				Condition();
@@ -198,13 +200,13 @@ public class Parser {
 	}
 
 	Obj Expression() {
-		boolean hasAddop = false;
+		boolean hasPrefixAddop = false;
 		if (la.kind == Token.IDs.PLUS || la.kind == Token.IDs.MINUS) {
 			Addop();
-			hasAddop = true;
+			hasPrefixAddop = true;
 		}
 		Obj term = Term();
-		if (hasAddop && term.getType() != SymTab.Companion.getINT_TYPE()) {
+		if (hasPrefixAddop && term.getType() != SymTab.Companion.getINT_TYPE()) {
 			throw new IllegalStateException("Type mismatch in expression! Addop requires integer type!");
 		}
 
@@ -268,7 +270,8 @@ public class Parser {
 	Obj Factor() {
 		if (la.kind == Token.IDs.IDENT) {
 			Designator();
-			// TODO
+			// Do lookup in SymTab
+			return symTab.find(t.val);
 		} else if (la.kind == Token.IDs.NUMBER) {
 			Get();
 			return symTab.getIntObj();

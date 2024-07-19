@@ -355,6 +355,10 @@ public class Scanner {
 		buffer = new Buffer(s);
 		Init();
 	}
+
+	public int getLineNr() {
+		return this.line + 1;
+	}
 	
 	void Init () {
 		pos = -1; line = 1; col = 0; charPos = -1;

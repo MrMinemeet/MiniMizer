@@ -50,7 +50,7 @@ class SymTab(private val parser: Parser) {
 	fun insert(kind: Obj.Kind, name: String, type: Struct? = null): Obj {
 		// Check if name already exists in current scope
 		if (curScope.findLocal(name) != null) {
-			throw Error("Name $name already exists in current scope")
+			throw Error("(Line ${parser.scanner.lineNr}) Name $name already exists in current scope")
 		}
 
 		// Does not exist -> Create
@@ -82,7 +82,7 @@ class SymTab(private val parser: Parser) {
 		}
 
 		// Not found
-		throw Error("Name $name not found in any scope")
+		throw Error("(Line ${parser.scanner.lineNr}) Name $name not found in any scope")
 	}
 
 }
