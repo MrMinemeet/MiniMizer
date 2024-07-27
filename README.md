@@ -1,6 +1,7 @@
 # MiniMizer
 My optimizer for Project 2 of the LVA [Advanced Compiler Construction](https://ssw.jku.at/Teaching/Lectures/ACC/) @JKU Linz by Prof. Hanspeter Mössenböck.
 
+This project was originally intended to be perfored for the lecutre. As I had no time during that period, I'm performing it as a hobby project.
 
 ## Task description:
 The goal of this project is to write a compiler that translates a program of the toy language Mini
