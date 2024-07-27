@@ -43,7 +43,6 @@ public class Parser {
 				++errDist;
 				break;
 			}
-
 			la = t;
 		}
 	}
@@ -81,7 +80,7 @@ public class Parser {
 	void Mini() {
 		Expect(Token.IDs.PROGRAM);
 		// Open "program" scope
-		final Obj program = symTab.insert(Obj.Kind.PROGRAM, t.val, SymTab.Companion.getNO_TYPE());
+		final Obj program = symTab.insert(Obj.Kind.PROGRAM, t.val, SymTab.Companion.getNO_TYPE(), 0);
 		symTab.openScope();
 
 		while (la.kind == Token.IDs.VAR) {
@@ -125,8 +124,8 @@ public class Parser {
 		Expect(Token.IDs.COLON);
 		final Struct varType = Type();
 		for (Token id : ids) {
-			System.out.format("Inserting variable '%s' of type '%s'\n", id.val, varType);
-			symTab.insert(Obj.Kind.VARIABLE, id.val, varType);
+			System.out.format("(Line %s) Inserting variable '%s' of type '%s'\n", scanner.getLineNr(), id.val, varType);
+			symTab.insert(Obj.Kind.VARIABLE, id.val, varType, 0);
 		}
 	}
 
@@ -153,7 +152,11 @@ public class Parser {
 				if (designator.getType() != expr.getType()) {
 					throw new IllegalStateException("Designator and expression have different types!");
 				}
-				System.out.printf("(Line: %d) Assigning '%s' to '%s'\n", scanner.getLineNr(), expr.getName(), designator.getName());
+				System.out.printf("(Line: %d) Assigning '%s' (%s) to '%s' (%s)\n",
+					scanner.getLineNr(),
+				    (expr.getKind().equals(Obj.Kind.CONSTANT)) ? expr.getValue() : expr.getName(),
+					expr.getType(),
+					designator.getName(), designator.getType());
 
 			} else if (la.kind == Token.IDs.IF) {
 				Get();
@@ -179,24 +182,53 @@ public class Parser {
 				Expect(Token.IDs.END);
 			} else if (la.kind == Token.IDs.READ) {
 				Get();
-				Designator();
+				Obj desg = Designator();
+				if (desg.getType() != SymTab.Companion.getINT_TYPE()) {
+					throw new IllegalStateException(String.format("(Line %d) Read statement can only read integers!", scanner.getLineNr()));
+				}
 			} else {
 				Get();
-				Expression();
+				Obj expr = Expression();
+				if (expr.getType() != SymTab.Companion.getINT_TYPE()) {
+					throw new IllegalStateException(String.format("(Line %d) Write statement can only write integers!", scanner.getLineNr()));
+				}
 			}
 		}
 	}
 
 	Obj Designator() {
 		Expect(Token.IDs.IDENT);
-		Obj identObj = symTab.find(t.val);
+		Obj rootIdent = symTab.find(t.val);
+		int indicesBracketCounter = 0;
 		while (la.kind == Token.IDs.LBRACKET) {
-			// TODO: Detect if ident access was written to array
 			Get();
-			Expression();
+			Obj indexVal = Expression();
+			if (indexVal.getType() != SymTab.Companion.getINT_TYPE()) {
+				throw new IllegalStateException(String.format("(Line %d) Array index must be of type integer!", scanner.getLineNr()));
+			}
 			Expect(Token.IDs.RBRACKET);
+			indicesBracketCounter++;
 		}
-		return identObj;
+		// Get the type of the indexed array
+		if (indicesBracketCounter > 0) {
+			Struct arrayType = getArrayObj(rootIdent, indicesBracketCounter);
+			return new Obj(Obj.Kind.TYPE, "arrayAccess", arrayType, 0);
+		}
+		return rootIdent;
+	}
+
+	private Struct getArrayObj(Obj rootObj, int indicesCount) {
+		Struct arrayType = rootObj.getType();
+		for (int i = 0; i < indicesCount; i++) {
+			if (arrayType == null) {
+				throw new IllegalStateException(String.format("(Line %d) Identifier '%s' is not an array. Likely too many indices brackets!", scanner.getLineNr(), rootObj.getName()));
+			}
+			if (arrayType.getKind() != Struct.Kind.ARRAY) {
+				throw new IllegalStateException(String.format("(Line %d) '%s' is not an array. Cannot access with indices brackets", scanner.getLineNr(), rootObj.getName()));
+			}
+			arrayType = arrayType.getElemType();
+		}
+		return arrayType;
 	}
 
 	Obj Expression() {
@@ -216,8 +248,9 @@ public class Parser {
 			if (other.getType() != SymTab.Companion.getINT_TYPE()) {
 				throw new IllegalStateException("Type mismatch in expression! Addop requires integer type!");
 			}
+
 			if (term.getType() != other.getType()) {
-				throw new IllegalStateException("Terms in expression have different types!");
+				throw new IllegalStateException(String.format("(Line %d) Terms in expression have different types!", scanner.getLineNr()));
 			}
 		}
 
@@ -225,9 +258,21 @@ public class Parser {
 	}
 
 	void Condition() {
-		Expression();
+		Obj expr1 = Expression();
 		Relop();
-		Expression();
+		Obj expr2 = Expression();
+
+		// Not clearly specified, so I'll disallow comparison of non-integer types
+		if (expr1.getType() != SymTab.Companion.getINT_TYPE() || expr2.getType() != SymTab.Companion.getINT_TYPE()) {
+			throw new IllegalStateException("Type mismatch in condition! Can only compare integers!");
+		}
+		System.out.printf("(Line %d) Comparing '%s' (%s) %s '%s' (%s)\n",
+			scanner.getLineNr(),
+			(expr1.getKind().equals(Obj.Kind.CONSTANT)) ? expr1.getValue() : expr1.getName(),
+			expr1.getType(),
+			t.val,
+			(expr2.getKind().equals(Obj.Kind.CONSTANT)) ? expr2.getValue() : expr2.getName(),
+			expr2.getType());
 	}
 
 	void Relop() {
@@ -269,17 +314,22 @@ public class Parser {
 
 	Obj Factor() {
 		if (la.kind == Token.IDs.IDENT) {
-			Designator();
-			// Do lookup in SymTab
-			return symTab.find(t.val);
+			Obj desg = Designator();
+
+			if (desg.getKind() == Obj.Kind.TYPE) {
+				// If of kind "TYPE", then the designator is an array from which the type has been retrieved
+				return desg;
+			}
+			// Else, do a lookup in the symbol table
+			return symTab.find(desg.getName());
 		} else if (la.kind == Token.IDs.NUMBER) {
 			Get();
-			return symTab.getIntObj();
+			return new Obj(Obj.Kind.CONSTANT, "int", SymTab.Companion.getINT_TYPE(), Integer.parseInt(t.val));
 		} else if (la.kind == Token.IDs.LPAREN) {
 			Get();
-			Expression();
+			Obj expr = Expression();
 			Expect(Token.IDs.RPAREN);
-			// TODO
+			return expr;
 		} else SynErr(41);
 
 		return null;

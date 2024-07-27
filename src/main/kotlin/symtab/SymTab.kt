@@ -11,11 +11,11 @@ class SymTab(private val parser: Parser) {
 
 	// Define universe objects
 	val intObj: Obj by lazy {
-		insert(Obj.Kind.TYPE, "int", INT_TYPE)
+		insert(Obj.Kind.CONSTANT, "int", INT_TYPE, -1)
 	}
 
 	val arrObj: Obj by lazy {
-		insert(Obj.Kind.TYPE, "arr", Struct(Struct.Kind.ARRAY))
+		insert(Obj.Kind.CONSTANT, "arr", Struct(Struct.Kind.ARRAY))
 	}
 
 	// Init scope for universe
@@ -47,14 +47,14 @@ class SymTab(private val parser: Parser) {
 	 * @param type The type of the object (if applicable)
 	 * @throws Error If the name already exists in the current scope
 	 */
-	fun insert(kind: Obj.Kind, name: String, type: Struct? = null): Obj {
+	fun insert(kind: Obj.Kind, name: String, type: Struct? = null, value: Int = 0): Obj {
 		// Check if name already exists in current scope
 		if (curScope.findLocal(name) != null) {
 			throw Error("(Line ${parser.scanner.lineNr}) Name $name already exists in current scope")
 		}
 
 		// Does not exist -> Create
-		val newObj = Obj(kind, name, type)
+		val newObj = Obj(kind, name, type, value)
 		newObj.level = curLevel
 
 		// Add to current scope
@@ -82,7 +82,7 @@ class SymTab(private val parser: Parser) {
 		}
 
 		// Not found
-		throw Error("(Line ${parser.scanner.lineNr}) Name $name not found in any scope")
+		throw Error("(Line ${parser.scanner.lineNr}) Name '$name' not found in any scope")
 	}
 
 }

@@ -357,7 +357,7 @@ public class Scanner {
 	}
 
 	public int getLineNr() {
-		return this.line + 1;
+		return this.line - 1;
 	}
 	
 	void Init () {
