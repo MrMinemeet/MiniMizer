@@ -1,9 +1,10 @@
-
+import java.util.ArrayList;
+import java.util.List;
+import symtab.Obj;
+import symtab.Struct;
+import symtab.SymTab;
 
 public class Parser {
-	public static final int _EOF = 0;
-	public static final int _ident = 1;
-	public static final int _number = 2;
 	public static final int maxT = 37;
 
 	static final boolean _T = true;
@@ -17,7 +18,7 @@ public class Parser {
 	public Scanner scanner;
 	public Errors errors;
 
-	
+	private SymTab symTab = new SymTab(this);
 
 	public Parser(Scanner scanner) {
 		this.scanner = scanner;
@@ -42,7 +43,6 @@ public class Parser {
 				++errDist;
 				break;
 			}
-
 			la = t;
 		}
 	}
@@ -78,181 +78,269 @@ public class Parser {
 	}
 	
 	void Mini() {
-		Expect(3);
-		while (la.kind == 7) {
+		Expect(Token.IDs.PROGRAM);
+		// Open "program" scope
+		final Obj program = symTab.insert(Obj.Kind.PROGRAM, t.val, SymTab.Companion.getNO_TYPE(), 0);
+		symTab.openScope();
+
+		while (la.kind == Token.IDs.VAR) {
 			VarDecl();
 		}
-		Expect(4);
+		Expect(Token.IDs.BEGIN);
 		StatSeq();
-		Expect(5);
-		Expect(6);
+		Expect(Token.IDs.END);
+		Expect(Token.IDs.DOT);
+
+		// Close "program" scope
+		program.getLocals().putAll(symTab.getCurScope().getImmutableLocals());
+		symTab.closeScope();
 	}
 
 	void VarDecl() {
-		Expect(7);
-		while (la.kind == 1) {
+		Expect(Token.IDs.VAR);
+		while (la.kind == Token.IDs.IDENT) {
 			IdListDecl();
-			Expect(8);
+			Expect(Token.IDs.SEMICOLON);
 		}
 	}
 
 	void StatSeq() {
 		Statement();
-		while (la.kind == 8) {
+		while (la.kind == Token.IDs.SEMICOLON) {
 			Get();
 			Statement();
 		}
 	}
 
 	void IdListDecl() {
-		Expect(1);
-		while (la.kind == 9) {
-			Get();
-			Expect(1);
+		final List<Token> ids = new ArrayList<>();
+		Expect(Token.IDs.IDENT);
+		ids.add(t);
+		while (la.kind == Token.IDs.COMMA) {
+			Get(); // Remove `","`
+			Expect(Token.IDs.IDENT);
+			ids.add(t);
 		}
-		Expect(10);
-		Type();
+		Expect(Token.IDs.COLON);
+		final Struct varType = Type();
+		for (Token id : ids) {
+			System.out.format("(Line %s) Inserting variable '%s' of type '%s'\n", scanner.getLineNr(), id.val, varType);
+			symTab.insert(Obj.Kind.VARIABLE, id.val, varType, 0);
+		}
 	}
 
-	void Type() {
-		if (la.kind == 1) {
+	Struct Type() {
+		if (la.kind == Token.IDs.IDENT) {
 			Get();
-		} else if (la.kind == 11) {
+			return SymTab.Companion.getINT_TYPE();
+		} else if (la.kind == Token.IDs.ARRAY) {
 			Get();
-			Expect(2);
-			Expect(12);
-			Type();
+			Expect(Token.IDs.NUMBER);
+			Expect(Token.IDs.OF);
+			Struct subType = Type();
+			return new Struct(Struct.Kind.ARRAY, subType);
 		} else SynErr(38);
+		throw new IllegalStateException("Unknown type of look-ahead");
 	}
 
 	void Statement() {
 		if (StartOf(1)) {
-			if (la.kind == 1) {
-				Designator();
-				Expect(13);
-				Expression();
-			} else if (la.kind == 14) {
+			if (la.kind == Token.IDs.IDENT) {
+				Obj designator = Designator();
+				Expect(Token.IDs.ASSIGN);
+				Obj expr = Expression();
+				if (designator.getType() != expr.getType()) {
+					throw new IllegalStateException("Designator and expression have different types!");
+				}
+				System.out.printf("(Line: %d) Assigning '%s' (%s) to '%s' (%s)\n",
+					scanner.getLineNr(),
+				    (expr.getKind().equals(Obj.Kind.CONSTANT)) ? expr.getValue() : expr.getName(),
+					expr.getType(),
+					designator.getName(), designator.getType());
+
+			} else if (la.kind == Token.IDs.IF) {
 				Get();
 				Condition();
-				Expect(15);
+				Expect(Token.IDs.THEN);
 				StatSeq();
-				while (la.kind == 16) {
+				while (la.kind == Token.IDs.ELSIF) {
 					Get();
 					Condition();
-					Expect(15);
+					Expect(Token.IDs.THEN);
 					StatSeq();
 				}
-				if (la.kind == 17) {
+				if (la.kind == Token.IDs.ELSE) {
 					Get();
 					StatSeq();
 				}
-				Expect(5);
-			} else if (la.kind == 18) {
+				Expect(Token.IDs.END);
+			} else if (la.kind == Token.IDs.WHILE) {
 				Get();
 				Condition();
-				Expect(19);
+				Expect(Token.IDs.DO);
 				StatSeq();
-				Expect(5);
-			} else if (la.kind == 20) {
+				Expect(Token.IDs.END);
+			} else if (la.kind == Token.IDs.READ) {
 				Get();
-				Designator();
+				Obj desg = Designator();
+				if (desg.getType() != SymTab.Companion.getINT_TYPE()) {
+					throw new IllegalStateException(String.format("(Line %d) Read statement can only read integers!", scanner.getLineNr()));
+				}
 			} else {
 				Get();
-				Expression();
+				Obj expr = Expression();
+				if (expr.getType() != SymTab.Companion.getINT_TYPE()) {
+					throw new IllegalStateException(String.format("(Line %d) Write statement can only write integers!", scanner.getLineNr()));
+				}
 			}
 		}
 	}
 
-	void Designator() {
-		Expect(1);
-		while (la.kind == 24) {
+	Obj Designator() {
+		Expect(Token.IDs.IDENT);
+		Obj rootIdent = symTab.find(t.val);
+		int indicesBracketCounter = 0;
+		while (la.kind == Token.IDs.LBRACKET) {
 			Get();
-			Expression();
-			Expect(25);
+			Obj indexVal = Expression();
+			if (indexVal.getType() != SymTab.Companion.getINT_TYPE()) {
+				throw new IllegalStateException(String.format("(Line %d) Array index must be of type integer!", scanner.getLineNr()));
+			}
+			Expect(Token.IDs.RBRACKET);
+			indicesBracketCounter++;
 		}
+		// Get the type of the indexed array
+		if (indicesBracketCounter > 0) {
+			Struct arrayType = getArrayObj(rootIdent, indicesBracketCounter);
+			return new Obj(Obj.Kind.TYPE, "arrayAccess", arrayType, 0);
+		}
+		return rootIdent;
 	}
 
-	void Expression() {
-		if (la.kind == 32 || la.kind == 33) {
-			Addop();
+	private Struct getArrayObj(Obj rootObj, int indicesCount) {
+		Struct arrayType = rootObj.getType();
+		for (int i = 0; i < indicesCount; i++) {
+			if (arrayType == null) {
+				throw new IllegalStateException(String.format("(Line %d) Identifier '%s' is not an array. Likely too many indices brackets!", scanner.getLineNr(), rootObj.getName()));
+			}
+			if (arrayType.getKind() != Struct.Kind.ARRAY) {
+				throw new IllegalStateException(String.format("(Line %d) '%s' is not an array. Cannot access with indices brackets", scanner.getLineNr(), rootObj.getName()));
+			}
+			arrayType = arrayType.getElemType();
 		}
-		Term();
-		while (la.kind == 32 || la.kind == 33) {
+		return arrayType;
+	}
+
+	Obj Expression() {
+		boolean hasPrefixAddop = false;
+		if (la.kind == Token.IDs.PLUS || la.kind == Token.IDs.MINUS) {
 			Addop();
-			Term();
+			hasPrefixAddop = true;
 		}
+		Obj term = Term();
+		if (hasPrefixAddop && term.getType() != SymTab.Companion.getINT_TYPE()) {
+			throw new IllegalStateException("Type mismatch in expression! Addop requires integer type!");
+		}
+
+		while (la.kind == Token.IDs.PLUS || la.kind == Token.IDs.MINUS) {
+			Addop();
+			Obj other = Term();
+			if (other.getType() != SymTab.Companion.getINT_TYPE()) {
+				throw new IllegalStateException("Type mismatch in expression! Addop requires integer type!");
+			}
+
+			if (term.getType() != other.getType()) {
+				throw new IllegalStateException(String.format("(Line %d) Terms in expression have different types!", scanner.getLineNr()));
+			}
+		}
+
+		return term;
 	}
 
 	void Condition() {
-		Expression();
+		Obj expr1 = Expression();
 		Relop();
-		Expression();
+		Obj expr2 = Expression();
+
+		// Not clearly specified, so I'll disallow comparison of non-integer types
+		if (expr1.getType() != SymTab.Companion.getINT_TYPE() || expr2.getType() != SymTab.Companion.getINT_TYPE()) {
+			throw new IllegalStateException("Type mismatch in condition! Can only compare integers!");
+		}
+		System.out.printf("(Line %d) Comparing '%s' (%s) %s '%s' (%s)\n",
+			scanner.getLineNr(),
+			(expr1.getKind().equals(Obj.Kind.CONSTANT)) ? expr1.getValue() : expr1.getName(),
+			expr1.getType(),
+			t.val,
+			(expr2.getKind().equals(Obj.Kind.CONSTANT)) ? expr2.getValue() : expr2.getName(),
+			expr2.getType());
 	}
 
 	void Relop() {
 		switch (la.kind) {
-		case 26: {
-			Get();
-			break;
-		}
-		case 27: {
-			Get();
-			break;
-		}
-		case 28: {
-			Get();
-			break;
-		}
-		case 29: {
-			Get();
-			break;
-		}
-		case 30: {
-			Get();
-			break;
-		}
-		case 31: {
-			Get();
-			break;
-		}
-		default: SynErr(39); break;
+			case Token.IDs.EQUAL:
+			case Token.IDs.NOT_EQUAL:
+			case Token.IDs.LESS_THAN:
+			case Token.IDs.GREATER_THAN:
+			case Token.IDs.GREATER_EQUAL:
+			case Token.IDs.LESS_EQUAL:
+				Get();
+				break;
+
+			default:
+				SynErr(39);
+				break;
 		}
 	}
 
 	void Addop() {
-		if (la.kind == 32) {
+		if (la.kind == Token.IDs.PLUS) {
 			Get();
-		} else if (la.kind == 33) {
+		} else if (la.kind == Token.IDs.MINUS) {
 			Get();
 		} else SynErr(40);
 	}
 
-	void Term() {
-		Factor();
-		while (la.kind == 34 || la.kind == 35 || la.kind == 36) {
+	Obj Term() {
+		Obj obj = Factor();
+		while (la.kind == Token.IDs.MULTIPLY || la.kind == Token.IDs.DIVIDE || la.kind == Token.IDs.MODULO) {
 			Mulop();
-			Factor();
+			Obj other = Factor();
+			if (obj.getType() != other.getType()) {
+				SemErr("Type mismatch in term");
+			}
 		}
+		return obj;
 	}
 
-	void Factor() {
-		if (la.kind == 1) {
-			Designator();
-		} else if (la.kind == 2) {
+	Obj Factor() {
+		if (la.kind == Token.IDs.IDENT) {
+			Obj desg = Designator();
+
+			if (desg.getKind() == Obj.Kind.TYPE) {
+				// If of kind "TYPE", then the designator is an array from which the type has been retrieved
+				return desg;
+			}
+			// Else, do a lookup in the symbol table
+			return symTab.find(desg.getName());
+		} else if (la.kind == Token.IDs.NUMBER) {
 			Get();
-		} else if (la.kind == 22) {
+			return new Obj(Obj.Kind.CONSTANT, "int", SymTab.Companion.getINT_TYPE(), Integer.parseInt(t.val));
+		} else if (la.kind == Token.IDs.LPAREN) {
 			Get();
-			Expression();
-			Expect(23);
+			Obj expr = Expression();
+			Expect(Token.IDs.RPAREN);
+			return expr;
 		} else SynErr(41);
+
+		return null;
 	}
 
 	void Mulop() {
-		if (la.kind == 34) {
+		if (la.kind == Token.IDs.MULTIPLY) {
 			Get();
-		} else if (la.kind == 35) {
+		} else if (la.kind == Token.IDs.DIVIDE) {
 			Get();
-		} else if (la.kind == 36) {
+		} else if (la.kind == Token.IDs.MODULO) {
 			Get();
 		} else SynErr(42);
 	}
@@ -264,7 +352,7 @@ public class Parser {
 		la.val = "";		
 		Get();
 		Mini();
-		Expect(0);
+		Expect(Token.IDs.EOF);
 
 	}
 

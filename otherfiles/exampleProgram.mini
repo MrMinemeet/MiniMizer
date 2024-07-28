@@ -6,8 +6,11 @@ BEGIN
     //--- read some data
     i := 0;
     WHILE i < 10 DO
-    j := 0;
-    WHILE j < 10 DO READ a[i][j]; j := j + 1 END;
+        j := 0;
+        WHILE j < 10 DO
+            READ a[i][j];
+            j := j + 1
+        END;
         i := i + 1
     END;
 
@@ -15,7 +18,10 @@ BEGIN
     i := 0;
     WHILE i < 10 DO
         j := 0;
-        WHILE j < 10 DO a[i][j] := a[i][j] + 1; j := j + 1 END;
+        WHILE j < 10 DO
+            a[i][j] := a[i][j] + 1;
+            j := j + 1
+        END;
         i := i + 1
     END
 END.

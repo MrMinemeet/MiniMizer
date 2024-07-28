@@ -1,10 +1,3 @@
-
-import java.io.InputStream;
-import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.util.Map;
-import java.util.HashMap;
-
 class Token {
 	public int kind;    // token kind
 	public int pos;     // token position in bytes in the source text (starting at 0)
@@ -13,6 +6,50 @@ class Token {
 	public int line;    // token line (starting at 1)
 	public String val;  // token value
 	public Token next;  // ML 2005-03-11 Peek tokens are kept in linked list
+
+	/**
+	 * Helper class to conveniently store the token IDs as more readable constants.
+	 */
+	public static class IDs {
+		public static final int EOF = 0;
+		public static final int IDENT = 1;
+		public static final int NUMBER = 2;
+		public static final int PROGRAM = 3;
+		public static final int BEGIN = 4;
+		public static final int END = 5;
+		public static final int DOT = 6;
+		public static final int VAR = 7;
+		public static final int SEMICOLON = 8;
+		public static final int COMMA = 9;
+		public static final int COLON = 10;
+		public static final int ARRAY = 11;
+		public static final int OF = 12;
+		public static final int ASSIGN = 13;
+		public static final int IF = 14;
+		public static final int THEN = 15;
+		public static final int ELSIF = 16;
+		public static final int ELSE = 17;
+		public static final int WHILE = 18;
+		public static final int DO = 19;
+		public static final int READ = 20;
+		public static final int WRITE = 21;
+		public static final int LPAREN = 22;
+		public static final int RPAREN = 23;
+		public static final int LBRACKET = 24;
+		public static final int RBRACKET = 25;
+		public static final int EQUAL = 26;
+		public static final int NOT_EQUAL = 27;
+		public static final int LESS_THAN = 28;
+		public static final int GREATER_THAN = 29;
+		public static final int GREATER_EQUAL = 30;
+		public static final int LESS_EQUAL = 31;
+		public static final int PLUS = 32;
+		public static final int MINUS = 33;
+		public static final int MULTIPLY = 34;
+		public static final int DIVIDE = 35;
+		public static final int MODULO = 36;
+
+	}
 }
 
 //-----------------------------------------------------------------------------------
@@ -69,11 +106,6 @@ class Buffer {
 		stream = b.stream;
 		// keep finalize from closing the file
 		b.file = null;
-	}
-
-	protected void finalize() throws Throwable {
-		super.finalize();
-		Close();
 	}
 
 	protected void Close() {
@@ -264,7 +296,7 @@ public class Scanner {
 	int line;          // line number of current character
 	int oldEols;       // EOLs that appeared in a comment;
 	static final StartStates start; // maps initial token character to start state
-	static final java.util.Map literals;      // maps literal strings to literal kinds
+	static final java.util.Map<String, Integer> literals;      // maps literal strings to literal kinds
 
 	Token tokens;      // list of tokens already peeked (first token is a dummy)
 	Token pt;          // current peek token
@@ -275,7 +307,7 @@ public class Scanner {
 
 	static {
 		start = new StartStates();
-		literals = new java.util.HashMap();
+		literals = new java.util.HashMap<>();
 		for (int i = 65; i <= 90; ++i) start.set(i, 1);
 		for (int i = 97; i <= 122; ++i) start.set(i, 1);
 		for (int i = 48; i <= 57; ++i) start.set(i, 2);
@@ -297,20 +329,20 @@ public class Scanner {
 		start.set(47, 18); 
 		start.set(37, 19); 
 		start.set(Buffer.EOF, -1);
-		literals.put("PROGRAM", new Integer(3));
-		literals.put("BEGIN", new Integer(4));
-		literals.put("END", new Integer(5));
-		literals.put("VAR", new Integer(7));
-		literals.put("ARRAY", new Integer(11));
-		literals.put("OF", new Integer(12));
-		literals.put("IF", new Integer(14));
-		literals.put("THEN", new Integer(15));
-		literals.put("ELSIF", new Integer(16));
-		literals.put("ELSE", new Integer(17));
-		literals.put("WHILE", new Integer(18));
-		literals.put("DO", new Integer(19));
-		literals.put("READ", new Integer(20));
-		literals.put("WRITE", new Integer(21));
+		literals.put("PROGRAM", 3);
+		literals.put("BEGIN", 4);
+		literals.put("END", 5);
+		literals.put("VAR", 7);
+		literals.put("ARRAY", 11);
+		literals.put("OF", 12);
+		literals.put("IF", 14);
+		literals.put("THEN", 15);
+		literals.put("ELSIF", 16);
+		literals.put("ELSE", 17);
+		literals.put("WHILE", 18);
+		literals.put("DO", 19);
+		literals.put("READ", 20);
+		literals.put("WRITE", 21);
 
 	}
 	
@@ -322,6 +354,10 @@ public class Scanner {
 	public Scanner(java.io.InputStream s) {
 		buffer = new Buffer(s);
 		Init();
+	}
+
+	public int getLineNr() {
+		return this.line - 1;
 	}
 	
 	void Init () {
@@ -392,9 +428,9 @@ public class Scanner {
 	void CheckLiteral() {
 		String val = t.val;
 
-		Object kind = literals.get(val);
+		Integer kind = literals.get(val);
 		if (kind != null) {
-			t.kind = ((Integer) kind).intValue();
+			t.kind = kind;
 		}
 	}
 
