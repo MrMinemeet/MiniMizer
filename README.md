@@ -7,7 +7,7 @@ This project was originally intended to be perfored for the lecutre. As I had no
 The goal of this project is to write a compiler that translates a program of the toy language Mini
 to an intermediate representation (a CFG with IR instructions), performs some optimizations
 on it and finally does register allocation by graph coloring. Code generation is not part of this
-project. The project can either be implemented in Java or in C#.
+project. The project can either be implemented in Java or in C#. As I do this as a hobby project, I used Kotlin for parts that have not been generated via COCO/R.
 
 ## Mini language description:
 Mini is a simple Pascal-like language with integer variables and (multi-dimensional) arrays. It
