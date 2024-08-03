@@ -1,4 +1,4 @@
-package symtab
+package symbolTable
 
 /**
  * Represents a struct in the symbol table.

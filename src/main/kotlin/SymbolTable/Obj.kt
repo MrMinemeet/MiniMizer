@@ -1,4 +1,4 @@
-package symtab
+package SymbolTable
 
 class Obj(val kind: Kind, val name: String, val type: Struct? = null, val value: Int = 0) {
 	enum class Kind {

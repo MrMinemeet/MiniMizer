@@ -1,8 +1,8 @@
 import java.util.ArrayList;
 import java.util.List;
-import symtab.Obj;
-import symtab.Struct;
-import symtab.SymTab;
+import symbolTable.Obj;
+import symbolTable.Struct;
+import symbolTable.SymTab;
 
 public class Parser {
 	public static final int maxT = 37;

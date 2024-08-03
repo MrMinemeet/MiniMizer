@@ -1,4 +1,4 @@
-package symtab
+package symbolTable
 
 import Parser
 

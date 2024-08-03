@@ -1,4 +1,4 @@
-package symtab
+package SymbolTable
 
 enum class Levels(val value: Int) {
 	UNKNOWN(-2),

@@ -1,4 +1,4 @@
-package symtab
+package symbolTable
 
 class Scope(val outer: Scope?, val level: Levels? = Levels.UNKNOWN) {
 	// Maps declaration of locals from name to object
