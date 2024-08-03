@@ -149,14 +149,14 @@ public class Parser {
 				Obj designator = Designator();
 				Expect(Token.IDs.ASSIGN);
 				Obj expr = Expression();
-				if (designator.getType() != expr.getType()) {
+				if (designator.getObjType() != expr.getObjType()) {
 					throw new IllegalStateException("Designator and expression have different types!");
 				}
 				System.out.printf("(Line: %d) Assigning '%s' (%s) to '%s' (%s)\n",
 					scanner.getLineNr(),
 				    (expr.getKind().equals(Obj.Kind.CONSTANT)) ? expr.getValue() : expr.getName(),
-					expr.getType(),
-					designator.getName(), designator.getType());
+					expr.getObjType(),
+					designator.getName(), designator.getObjType());
 
 			} else if (la.kind == Token.IDs.IF) {
 				Get();
@@ -183,13 +183,13 @@ public class Parser {
 			} else if (la.kind == Token.IDs.READ) {
 				Get();
 				Obj desg = Designator();
-				if (desg.getType() != SymTab.Companion.getINT_TYPE()) {
+				if (desg.getObjType() != SymTab.Companion.getINT_TYPE()) {
 					throw new IllegalStateException(String.format("(Line %d) Read statement can only read integers!", scanner.getLineNr()));
 				}
 			} else {
 				Get();
 				Obj expr = Expression();
-				if (expr.getType() != SymTab.Companion.getINT_TYPE()) {
+				if (expr.getObjType() != SymTab.Companion.getINT_TYPE()) {
 					throw new IllegalStateException(String.format("(Line %d) Write statement can only write integers!", scanner.getLineNr()));
 				}
 			}
@@ -203,7 +203,7 @@ public class Parser {
 		while (la.kind == Token.IDs.LBRACKET) {
 			Get();
 			Obj indexVal = Expression();
-			if (indexVal.getType() != SymTab.Companion.getINT_TYPE()) {
+			if (indexVal.getObjType() != SymTab.Companion.getINT_TYPE()) {
 				throw new IllegalStateException(String.format("(Line %d) Array index must be of type integer!", scanner.getLineNr()));
 			}
 			Expect(Token.IDs.RBRACKET);
@@ -218,7 +218,7 @@ public class Parser {
 	}
 
 	private Struct getArrayObj(Obj rootObj, int indicesCount) {
-		Struct arrayType = rootObj.getType();
+		Struct arrayType = rootObj.getObjType();
 		for (int i = 0; i < indicesCount; i++) {
 			if (arrayType == null) {
 				throw new IllegalStateException(String.format("(Line %d) Identifier '%s' is not an array. Likely too many indices brackets!", scanner.getLineNr(), rootObj.getName()));
@@ -238,18 +238,18 @@ public class Parser {
 			hasPrefixAddop = true;
 		}
 		Obj term = Term();
-		if (hasPrefixAddop && term.getType() != SymTab.Companion.getINT_TYPE()) {
+		if (hasPrefixAddop && term.getObjType() != SymTab.Companion.getINT_TYPE()) {
 			throw new IllegalStateException("Type mismatch in expression! Addop requires integer type!");
 		}
 
 		while (la.kind == Token.IDs.PLUS || la.kind == Token.IDs.MINUS) {
 			Addop();
 			Obj other = Term();
-			if (other.getType() != SymTab.Companion.getINT_TYPE()) {
+			if (other.getObjType() != SymTab.Companion.getINT_TYPE()) {
 				throw new IllegalStateException("Type mismatch in expression! Addop requires integer type!");
 			}
 
-			if (term.getType() != other.getType()) {
+			if (term.getObjType() != other.getObjType()) {
 				throw new IllegalStateException(String.format("(Line %d) Terms in expression have different types!", scanner.getLineNr()));
 			}
 		}
@@ -263,16 +263,16 @@ public class Parser {
 		Obj expr2 = Expression();
 
 		// Not clearly specified, so I'll disallow comparison of non-integer types
-		if (expr1.getType() != SymTab.Companion.getINT_TYPE() || expr2.getType() != SymTab.Companion.getINT_TYPE()) {
+		if (expr1.getObjType() != SymTab.Companion.getINT_TYPE() || expr2.getObjType() != SymTab.Companion.getINT_TYPE()) {
 			throw new IllegalStateException("Type mismatch in condition! Can only compare integers!");
 		}
 		System.out.printf("(Line %d) Comparing '%s' (%s) %s '%s' (%s)\n",
 			scanner.getLineNr(),
 			(expr1.getKind().equals(Obj.Kind.CONSTANT)) ? expr1.getValue() : expr1.getName(),
-			expr1.getType(),
+			expr1.getObjType(),
 			t.val,
 			(expr2.getKind().equals(Obj.Kind.CONSTANT)) ? expr2.getValue() : expr2.getName(),
-			expr2.getType());
+			expr2.getObjType());
 	}
 
 	void Relop() {
@@ -305,7 +305,7 @@ public class Parser {
 		while (la.kind == Token.IDs.MULTIPLY || la.kind == Token.IDs.DIVIDE || la.kind == Token.IDs.MODULO) {
 			Mulop();
 			Obj other = Factor();
-			if (obj.getType() != other.getType()) {
+			if (obj.getObjType() != other.getObjType()) {
 				SemErr("Type mismatch in term");
 			}
 		}
