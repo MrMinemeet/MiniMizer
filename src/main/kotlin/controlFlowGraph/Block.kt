@@ -8,7 +8,15 @@ import java.util.*
  * * no jumps out of this sequence (except from the last instruction)
  * * no inner jumps
  */
-class Block {
+// I want to keep the comments
+class Block: Iterable<Instruction> {
+	private companion object {
+		private var id = 0
+		private fun getNewId(): Int {
+			return id++
+		}
+	}
+
 	enum class Kind {
 		NORMAL, LOOP_HEADER, JOIN_BLOCKS
 	}
@@ -16,7 +24,7 @@ class Block {
 	/**
 	 * The unique identifier of the block
 	 */
-	val id = UUID.randomUUID() ?: throw Error("UUID generation failed")
+	val id = getNewId()
 
 	/**
 	 * Block kind
@@ -25,14 +33,22 @@ class Block {
 
 	/**
 	 * Sequential successor
+	 *
+	 * Called *left* in the examples on the slides.
 	 */
 	var seqSuc: Block? = null
 
 	/**
 	 * Successor when following a jump
+	 *
+	 * Called *right* in the examples on the slides.
 	 */
 	var jumpSuc: Block? = null
 
+	/**
+	 * Dominator, i.e., the block that occurs before this block.
+	 */
+	var dom: Block? = null
 
 	/**
 	 * List of predecessor blocks
@@ -42,10 +58,64 @@ class Block {
 	/**
 	 * First instruction in the block
 	 */
-	var first: Instruction? = null
+	var first: Instruction? = null;
 
 	/**
 	 * Last instruction in the block
 	 */
 	var last: Instruction? = null
+
+	constructor()
+
+	constructor(first: Instruction): this() {
+		this.first = first
+		this.last = first
+	}
+
+	fun appendInstr(instr: Instruction) {
+		if (first == null) {
+			first = instr
+			last = instr
+		} else {
+			last?.next = instr
+			instr.prev = last
+			last = instr
+		}
+	}
+
+	/**
+	 * Prints the block in the style suggested by the example in the assignment description.
+	 */
+	override fun toString(): String {
+		val sb = StringBuilder()
+
+		// Head of block
+		sb.append("$id --- seqSuc: ${seqSuc?.id} -- jumpSuc: ${jumpSuc?.id} -- dom: ${dom?.id} -- pred: ${preds.map { it.id }}\n")
+
+		// Add instructions
+		for (instr in this) {
+			sb.append("\t$instr\n")
+		}
+
+		return sb.toString()
+	}
+
+	/**
+	 * Iterator for the instructions in the block.
+	 */
+	override fun iterator(): Iterator<Instruction> {
+		return object : Iterator<Instruction> {
+			var current: Instruction? = first
+
+			override fun hasNext(): Boolean {
+				return current != null
+			}
+
+			override fun next(): Instruction {
+				val result = current ?: throw NoSuchElementException("No more instructions in block!")
+				current = result.next
+				return result
+			}
+		}
+	}
 }

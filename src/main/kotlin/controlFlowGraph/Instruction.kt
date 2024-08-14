@@ -6,7 +6,8 @@ package controlFlowGraph
  * Each instruction has two operants that can reference a variable, a constant or some other instruction.
  * Some instructions have operants that are not used and are represented as `null`.
  */
-class Instruction: Node() {
+// I want to keep the comments
+class Instruction: Node {
 	/**
 	 * The instruction left of the operator
 	 */
@@ -36,4 +37,18 @@ class Instruction: Node() {
 	 * The block the instruction belongs to
 	 */
 	var block: Block? = null
+
+	constructor(first: Node?, operator: Operation, second: Node?) {
+		this.first = first
+		this.operator = operator
+		this.second = second
+	}
+
+	constructor(first: Node, operator: Operation): this(first, operator, null)
+
+	constructor(operator: Operation, second: Node): this(null, operator, second)
+
+	override fun toString(): String {
+		return "$id: ${first ?: ""} $operator ${second ?: ""}"
+	}
 }

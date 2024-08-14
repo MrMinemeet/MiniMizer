@@ -5,161 +5,161 @@ package controlFlowGraph
  * Each operation has a specific meaning and can be used to perform a specific operation on the operands.
  * A "-" denotes that the operand is not used.
  */
-enum class Operation {
+enum class Operation(val symbol: String) {
 	/**
 	 * Negate
 	 *
 	 * `x neg -`
  	 */
-	NEG,
+	NEG ("-"),
 
 	/**
 	 * Add
 	 *
 	 * `x plus y`
 	 */
-	PLUS,
+	PLUS("+"),
 
 	/**
 	 * Subtract
 	 *
 	 * `x minus y`
 	 */
-	MINUS,
+	MINUS("-"),
 
 	/**
 	 * Multiply
 	 *
 	 * `x times y`
 	 */
-	TIMES,
+	TIMES("*"),
 
 	/**
 	 * Divide
 	 *
 	 * `x div y`
 	 */
-	DIV,
+	DIV("/"),
 
 	/**
 	 * Remainder (aka. modulo)
 	 *
 	 * `x rem y`
 	 */
-	REM,
+	REM("%"),
 
 	/**
 	 * Compare
 	 *
 	 * `x cmp y`
 	 */
-	CMP,
+	CMP("CMP"),
 
 	/**
 	 * Phi instruction
 	 *
 	 * `x phi opds`
 	 */
-	PHI,
+	PHI("PHI"),
 
 	/**
 	 * Load
 	 *
 	 * `x ld y`
 	 */
-	LD,
+	LD("LD"),
 
 	/**
 	 * Load register y (only used after removal of phi instructions)
 	 *
 	 * `- lr y`
 	 */
-	LR,
+	LR("LR"),
 
 	/**
 	 * Load constant y (only used after removal of phi instructions)
 	 *
 	 *
 	 */
-	LC,
+	LC("LC"),
 
 	/**
 	 * Store y to the memory address denoted by x
 	 *
 	 * `x store y`
 	 */
-	ST,
+	ST("ST"),
 
 	/**
 	 * Assign y to the variable x
 	 *
 	 * `x ass y`
 	 */
-	ASS,
+	ASS(":="),
 
 	/**
 	 * Read integer value
 	 *
 	 * `- read -`
 	 */
-	READ,
+	READ("RD"),
 
 	/**
 	 * Write integer value y
 	 *
 	 * `- write y`
 	 */
-	WRITE,
+	WRITE("WRT"),
 
 	/**
 	 * Return (used at end of the program)
 	 *
 	 * `- ret -`
 	 */
-	RET,
+	RET("RET"),
 
 	/**
 	 * Branch to block y
 	 *
 	 * `- br y`
 	 */
-	BR,
+	BR("BR"),
 
 	/**
 	 * Branch to block y if x references `a cmp b` and `a < b`
 	 *
 	 * `x blt y`
 	 */
-	BLT,
+	BLT("BLT"),
 
 	/**
 	 * Branches to block y if x references `a cmp b` and `a == b`
 	 *
 	 * `x beq y`
 	 */
-	BEQ,
+	BEQ("BEQ"),
 
 	/**
 	 * Branches to block y if x references `a cmp b` and `a > b`
 	 *
 	 * `x bgt y`
 	 */
-	BGT,
+	BGT("BGT"),
 
 	/**
 	 * Branches to block y if x references `a cmp b` and `a >= b`
 	 *
 	 * `x bge y`
 	 */
-	BGE,
+	BGE("BGE"),
 
 	/**
 	 * Branches to block y if x references `a cmp b` and `a != b`
 	 */
-	BNE,
+	BNE("BNE"),
 
 	/**
 	 * Branches to block y if x references `a cmp b` and `a <= b`
 	 */
-	BLE
+	BLE("BLE")
 }
