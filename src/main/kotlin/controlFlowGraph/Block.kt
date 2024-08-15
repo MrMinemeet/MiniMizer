@@ -10,10 +10,26 @@ import java.util.*
  */
 // I want to keep the comments
 class Block: Iterable<Instruction> {
-	private companion object {
+	companion object {
 		private var id = 0
 		private fun getNewId(): Int {
 			return id++
+		}
+
+		/**
+		 * Iterates over all blocks reachable from the given block.
+		 * @param block The block to start the iteration from
+		 * @param visited Set of visited blocks. Empty set by default when called from outside
+		 * @param action Action to perform on each block
+		 */
+		fun iterateBlocks(block: Block, visited: MutableSet<Block> = mutableSetOf(), action: (Block) -> Unit) {
+			if (visited.contains(block)) {
+				return
+			}
+			visited.add(block)
+			action(block)
+			block.seqSuc?.let { iterateBlocks(it, visited, action) }
+			block.jumpSuc?.let { iterateBlocks(it, visited, action) }
 		}
 	}
 
@@ -47,6 +63,8 @@ class Block: Iterable<Instruction> {
 
 	/**
 	 * Dominator, i.e., the block that occurs before this block.
+	 *
+	 * `null` if this block is the entry block.
 	 */
 	var dom: Block? = null
 
@@ -65,9 +83,11 @@ class Block: Iterable<Instruction> {
 	 */
 	var last: Instruction? = null
 
-	constructor()
+	constructor(dominator: Block? = null) {
+		this.dom = dominator
+	}
 
-	constructor(first: Instruction): this() {
+	constructor(dominator: Block, first: Instruction): this(dominator) {
 		this.first = first
 		this.last = first
 	}
