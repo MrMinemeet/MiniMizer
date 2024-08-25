@@ -1,11 +1,8 @@
 package controlFlowGraph
-
-import java.util.*
-
 /**
  * Represents a node in the control flow graph
  */
-open class Node {
+abstract class Node {
 	private companion object {
 		private var id = 0
 		private fun getNewId(): Int {
@@ -22,4 +19,11 @@ open class Node {
 	 * Type of the node
 	 */
 	val type = NodeType.NORMAL
+
+	/**
+	 * Provides the representation of the node for debugging purposes.
+	 * By default, it returns [toString]
+	 * @return The representation of the node
+	 */
+	open fun toIrPrintString() = toString()
 }

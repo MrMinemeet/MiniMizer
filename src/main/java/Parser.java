@@ -1,5 +1,12 @@
+import controlFlowGraph.Block;
+import controlFlowGraph.Constant;
+import controlFlowGraph.Instruction;
+import controlFlowGraph.Node;
+import controlFlowGraph.Operation;
+import java.io.Serial;
 import java.util.ArrayList;
 import java.util.List;
+import kotlin.Pair;
 import symbolTable.Obj;
 import symbolTable.Struct;
 import symbolTable.SymTab;
@@ -11,31 +18,36 @@ public class Parser {
 	static final boolean _x = false;
 	static final int minErrDist = 2;
 
-	public Token t;    // last recognized token
-	public Token la;   // lookahead token
+	private Token t;    // last recognized token
+	private Token la;   // lookahead token
 	int errDist = minErrDist;
 	
 	public Scanner scanner;
-	public Errors errors;
+	public final Errors errors;
 
-	private SymTab symTab = new SymTab(this);
+	private final SymTab symTab = new SymTab(this);
+
+	public Block entryBlock;
+	private Block currentBlock;
 
 	public Parser(Scanner scanner) {
 		this.scanner = scanner;
 		errors = new Errors();
+		this.entryBlock = new Block(null);
+		this.currentBlock = entryBlock;
 	}
 
-	void SynErr (int n) {
+	private void SynErr (int n) {
 		if (errDist >= minErrDist) errors.SynErr(la.line, la.col, n);
 		errDist = 0;
 	}
 
-	public void SemErr (String msg) {
-		if (errDist >= minErrDist) errors.SemErr(t.line, t.col, msg);
+	private void SemErr () {
+		if (errDist >= minErrDist) errors.SemErr(t.line, t.col, "Type mismatch in term");
 		errDist = 0;
 	}
 	
-	void Get () {
+	private void Get () {
 		for (;;) {
 			t = la;
 			la = scanner.Scan();
@@ -47,15 +59,15 @@ public class Parser {
 		}
 	}
 	
-	void Expect (int n) {
+	private void Expect (int n) {
 		if (la.kind==n) Get(); else { SynErr(n); }
 	}
 	
-	boolean StartOf (int s) {
+	private boolean StartOf (int s) {
 		return set[s][la.kind];
 	}
 	
-	void ExpectWeak (int n, int follow) {
+	private void ExpectWeak (int n, int follow) {
 		if (la.kind == n) Get();
 		else {
 			SynErr(n);
@@ -63,7 +75,7 @@ public class Parser {
 		}
 	}
 	
-	boolean WeakSeparator (int n, int syFol, int repFol) {
+	private boolean WeakSeparator (int n, int syFol, int repFol) {
 		int kind = la.kind;
 		if (kind == n) { Get(); return true; }
 		else if (StartOf(repFol)) return false;
@@ -77,7 +89,7 @@ public class Parser {
 		}
 	}
 	
-	void Mini() {
+	private void Mini() {
 		Expect(Token.IDs.PROGRAM);
 		// Open "program" scope
 		final Obj program = symTab.insert(Obj.Kind.PROGRAM, t.val, SymTab.Companion.getNO_TYPE(), 0);
@@ -96,7 +108,7 @@ public class Parser {
 		symTab.closeScope();
 	}
 
-	void VarDecl() {
+	private void VarDecl() {
 		Expect(Token.IDs.VAR);
 		while (la.kind == Token.IDs.IDENT) {
 			IdListDecl();
@@ -104,7 +116,7 @@ public class Parser {
 		}
 	}
 
-	void StatSeq() {
+	private void StatSeq() {
 		Statement();
 		while (la.kind == Token.IDs.SEMICOLON) {
 			Get();
@@ -112,7 +124,7 @@ public class Parser {
 		}
 	}
 
-	void IdListDecl() {
+	private void IdListDecl() {
 		final List<Token> ids = new ArrayList<>();
 		Expect(Token.IDs.IDENT);
 		ids.add(t);
@@ -123,13 +135,15 @@ public class Parser {
 		}
 		Expect(Token.IDs.COLON);
 		final Struct varType = Type();
-		for (Token id : ids) {
-			System.out.format("(Line %s) Inserting variable '%s' of type '%s'\n", scanner.getLineNr(), id.val, varType);
-			symTab.insert(Obj.Kind.VARIABLE, id.val, varType, 0);
+		if (GlobalVariables.DEBUG) {
+			for (Token id : ids) {
+				System.out.format("(Line %s) Inserting variable '%s' of type '%s'\n", scanner.getLineNr(), id.val, varType);
+				symTab.insert(Obj.Kind.VARIABLE, id.val, varType, 0);
+			}
 		}
 	}
 
-	Struct Type() {
+	private Struct Type() {
 		if (la.kind == Token.IDs.IDENT) {
 			Get();
 			return SymTab.Companion.getINT_TYPE();
@@ -143,20 +157,28 @@ public class Parser {
 		throw new IllegalStateException("Unknown type of look-ahead");
 	}
 
-	void Statement() {
+	private void Statement() {
 		if (StartOf(1)) {
 			if (la.kind == Token.IDs.IDENT) {
-				Obj designator = Designator();
+				final Pair<Obj, Node> designatorPair = Designator();
+				final Obj designator = designatorPair.getFirst();
+				final Node designatorNode = designatorPair.getSecond();
 				Expect(Token.IDs.ASSIGN);
-				Obj expr = Expression();
+				Pair<Obj, Node> exprPair = Expression();
+				Obj expr = exprPair.getFirst();
 				if (designator.getObjType() != expr.getObjType()) {
 					throw new IllegalStateException("Designator and expression have different types!");
 				}
+
 				System.out.printf("(Line: %d) Assigning '%s' (%s) to '%s' (%s)\n",
 					scanner.getLineNr(),
 				    (expr.getKind().equals(Obj.Kind.CONSTANT)) ? expr.getValue() : expr.getName(),
 					expr.getObjType(),
 					designator.getName(), designator.getObjType());
+
+				// Generate IR instruction and add to current block
+				currentBlock.appendInstr(generate(designatorNode, Operation.ASS, exprPair.getSecond()));
+				
 
 			} else if (la.kind == Token.IDs.IF) {
 				Get();
@@ -182,13 +204,15 @@ public class Parser {
 				Expect(Token.IDs.END);
 			} else if (la.kind == Token.IDs.READ) {
 				Get();
-				Obj desg = Designator();
+				final Pair<Obj, Node> desgPair = Designator();
+				final Obj desg = desgPair.getFirst();
 				if (desg.getObjType() != SymTab.Companion.getINT_TYPE()) {
 					throw new IllegalStateException(String.format("(Line %d) Read statement can only read integers!", scanner.getLineNr()));
 				}
 			} else {
 				Get();
-				Obj expr = Expression();
+				final Pair<Obj, Node> exprPair = Expression();
+				final Obj expr = exprPair.getFirst();
 				if (expr.getObjType() != SymTab.Companion.getINT_TYPE()) {
 					throw new IllegalStateException(String.format("(Line %d) Write statement can only write integers!", scanner.getLineNr()));
 				}
@@ -196,13 +220,14 @@ public class Parser {
 		}
 	}
 
-	Obj Designator() {
+	private Pair<Obj, Node> Designator() {
 		Expect(Token.IDs.IDENT);
-		Obj rootIdent = symTab.find(t.val);
+		final Obj rootIdent = symTab.find(t.val);
 		int indicesBracketCounter = 0;
 		while (la.kind == Token.IDs.LBRACKET) {
 			Get();
-			Obj indexVal = Expression();
+			final Pair<Obj, Node> indexValPair = Expression();
+			final Obj indexVal = indexValPair.getFirst();
 			if (indexVal.getObjType() != SymTab.Companion.getINT_TYPE()) {
 				throw new IllegalStateException(String.format("(Line %d) Array index must be of type integer!", scanner.getLineNr()));
 			}
@@ -210,11 +235,13 @@ public class Parser {
 			indicesBracketCounter++;
 		}
 		// Get the type of the indexed array
+		Obj obj = rootIdent;
 		if (indicesBracketCounter > 0) {
 			Struct arrayType = getArrayObj(rootIdent, indicesBracketCounter);
-			return new Obj(Obj.Kind.TYPE, "arrayAccess", arrayType, 0);
+			obj = new Obj(Obj.Kind.TYPE, "arrayAccess", arrayType, 0);
 		}
-		return rootIdent;
+		// TODO: Generate IR instruction node
+		return new Pair<>(obj, symTab.find(obj.getName()));
 	}
 
 	private Struct getArrayObj(Obj rootObj, int indicesCount) {
@@ -231,20 +258,31 @@ public class Parser {
 		return arrayType;
 	}
 
-	Obj Expression() {
+	private Pair<Obj, Node> Expression() {
 		boolean hasPrefixAddop = false;
 		if (la.kind == Token.IDs.PLUS || la.kind == Token.IDs.MINUS) {
 			Addop();
 			hasPrefixAddop = true;
 		}
-		Obj term = Term();
+
+		final Pair<Obj, Node> termPair = Term();
+		final Obj term = termPair.getFirst();
+		final Node termNode = termPair.getSecond();
 		if (hasPrefixAddop && term.getObjType() != SymTab.Companion.getINT_TYPE()) {
 			throw new IllegalStateException("Type mismatch in expression! Addop requires integer type!");
 		}
 
+		// Named x and y to be aligned with the examples from the lecture slides
+		Node x = termNode;
+		if (t.kind == Token.IDs.MINUS) {
+			x = new Instruction(x, Operation.NEG);
+		}
+
 		while (la.kind == Token.IDs.PLUS || la.kind == Token.IDs.MINUS) {
-			Addop();
-			Obj other = Term();
+			final int addOp = Addop();
+			final Pair<Obj, Node> otherPair = Term();
+			final Obj other = otherPair.getFirst();
+			final Node otherNode = otherPair.getSecond();
 			if (other.getObjType() != SymTab.Companion.getINT_TYPE()) {
 				throw new IllegalStateException("Type mismatch in expression! Addop requires integer type!");
 			}
@@ -252,15 +290,24 @@ public class Parser {
 			if (term.getObjType() != other.getObjType()) {
 				throw new IllegalStateException(String.format("(Line %d) Terms in expression have different types!", scanner.getLineNr()));
 			}
+
+			// Generate additional IR instructions
+			x = new Instruction(x, addOp == Token.IDs.PLUS ? Operation.PLUS : Operation.MINUS, otherNode);
 		}
 
-		return term;
+		if (x instanceof Instruction) {
+			currentBlock.appendInstr((Instruction) x);
+		}
+		// TODO: Generate IR instruction node
+		return new Pair<>(term, termNode);
 	}
 
-	void Condition() {
-		Obj expr1 = Expression();
+	private void Condition() {
+		final Pair<Obj, Node> exprPair1 = Expression();
+		final Obj expr1 = exprPair1.getFirst();
 		Relop();
-		Obj expr2 = Expression();
+		final Pair<Obj, Node> exprPair2 = Expression();
+		final Obj expr2 = exprPair2.getFirst();
 
 		// Not clearly specified, so I'll disallow comparison of non-integer types
 		if (expr1.getObjType() != SymTab.Companion.getINT_TYPE() || expr2.getObjType() != SymTab.Companion.getINT_TYPE()) {
@@ -275,7 +322,7 @@ public class Parser {
 			expr2.getObjType());
 	}
 
-	void Relop() {
+	private void Relop() {
 		switch (la.kind) {
 			case Token.IDs.EQUAL:
 			case Token.IDs.NOT_EQUAL:
@@ -292,50 +339,66 @@ public class Parser {
 		}
 	}
 
-	void Addop() {
+	private int Addop() {
 		if (la.kind == Token.IDs.PLUS) {
 			Get();
+			return Token.IDs.PLUS;
 		} else if (la.kind == Token.IDs.MINUS) {
 			Get();
+			return Token.IDs.MINUS;
 		} else SynErr(40);
+		return -1;
 	}
 
-	Obj Term() {
-		Obj obj = Factor();
+	private Pair<Obj, Node> Term() {
+		final Pair<Obj, Node> factorPair = Factor();
+		assert factorPair != null;
+		final Obj factor = factorPair.getFirst();
+		final Node factorNode = factorPair.getSecond();
 		while (la.kind == Token.IDs.MULTIPLY || la.kind == Token.IDs.DIVIDE || la.kind == Token.IDs.MODULO) {
 			Mulop();
-			Obj other = Factor();
-			if (obj.getObjType() != other.getObjType()) {
-				SemErr("Type mismatch in term");
+			final Pair<Obj, Node> otherPair = Factor();
+			assert otherPair != null;
+			final Obj other = otherPair.getFirst();
+			if (factor.getObjType() != other.getObjType()) {
+				SemErr();
 			}
 		}
-		return obj;
+		// TODO: Generate IR instruction node
+		return new Pair<>(factor, factorNode);
 	}
 
-	Obj Factor() {
+	private Pair<Obj, Node> Factor() {
 		if (la.kind == Token.IDs.IDENT) {
-			Obj desg = Designator();
+			final Pair<Obj, Node> desgPair = Designator();
+			final Obj desg = desgPair.getFirst();
 
 			if (desg.getKind() == Obj.Kind.TYPE) {
 				// If of kind "TYPE", then the designator is an array from which the type has been retrieved
-				return desg;
+				// TODO: Check if this is OK
+				return desgPair;
 			}
+
 			// Else, do a lookup in the symbol table
-			return symTab.find(desg.getName());
+			// TODO: Generate IR instruction node
+			return new Pair<>(symTab.find(desg.getName()), null);
 		} else if (la.kind == Token.IDs.NUMBER) {
 			Get();
-			return new Obj(Obj.Kind.CONSTANT, "int", SymTab.Companion.getINT_TYPE(), Integer.parseInt(t.val));
+			final Obj constVal = new Obj(Obj.Kind.CONSTANT, "int", SymTab.Companion.getINT_TYPE(), Integer.parseInt(t.val));
+			return new Pair<>(constVal, new Constant(constVal.getValue()));
 		} else if (la.kind == Token.IDs.LPAREN) {
 			Get();
-			Obj expr = Expression();
+			final Pair<Obj, Node> exprPair = Expression();
+			Obj expr = exprPair.getFirst();
 			Expect(Token.IDs.RPAREN);
-			return expr;
+			// TODO: Generate IR instruction node/get correct Node entry if required
+			return new Pair<>(expr, null);
 		} else SynErr(41);
 
 		return null;
 	}
 
-	void Mulop() {
+	private void Mulop() {
 		if (la.kind == Token.IDs.MULTIPLY) {
 			Get();
 		} else if (la.kind == Token.IDs.DIVIDE) {
@@ -345,22 +408,44 @@ public class Parser {
 		} else SynErr(42);
 	}
 
-
-
 	public void Parse() {
 		la = new Token();
 		la.val = "";		
 		Get();
 		Mini();
 		Expect(Token.IDs.EOF);
+	}
 
+	/**
+	 * Creates a new block and sets it as the current block.
+	 * The new block is linked to the previous block as its dominator
+	 * @param jump If true, then the new block is set as {@link Block#jumpSuc}, otherwise as {@link Block#seqSuc}.
+	 * @return The old block, i.e. the previous {@link Parser#currentBlock}.
+	 */
+	private Block startNewBlock(boolean jump) {
+		final Block oldBlock = currentBlock;
+		currentBlock = new Block(currentBlock);
+		if (oldBlock != null) {
+			if (jump) {
+				oldBlock.setJumpSuc(currentBlock);
+			} else {
+				oldBlock.setSeqSuc(currentBlock);
+			}
+		}
+		return oldBlock;
 	}
 
 	private static final boolean[][] set = {
 		{_T,_x,_x,_x, _x,_x,_x,_x, _x,_x,_x,_x, _x,_x,_x,_x, _x,_x,_x,_x, _x,_x,_x,_x, _x,_x,_x,_x, _x,_x,_x,_x, _x,_x,_x,_x, _x,_x,_x},
 		{_x,_T,_x,_x, _x,_x,_x,_x, _x,_x,_x,_x, _x,_x,_T,_x, _x,_x,_T,_x, _T,_T,_x,_x, _x,_x,_x,_x, _x,_x,_x,_x, _x,_x,_x,_x, _x,_x,_x}
-
 	};
+
+	protected Instruction generate(Node first, Operation operator, Node second) {
+		final Instruction instr = new Instruction(first, operator, second);
+		currentBlock.appendInstr(instr);
+		GlobalVariables.debug(instr.toIrPrintString());
+		return instr;
+	}
 } // end Parser
 
 
@@ -370,64 +455,63 @@ class Errors {
 	public String errMsgFormat = "-- line {0} col {1}: {2}"; // 0=line, 1=column, 2=text
 	
 	protected void printMsg(int line, int column, String msg) {
-		StringBuffer b = new StringBuffer(errMsgFormat);
+		StringBuilder b = new StringBuilder(errMsgFormat);
 		int pos = b.indexOf("{0}");
 		if (pos >= 0) { b.delete(pos, pos+3); b.insert(pos, line); }
 		pos = b.indexOf("{1}");
 		if (pos >= 0) { b.delete(pos, pos+3); b.insert(pos, column); }
 		pos = b.indexOf("{2}");
 		if (pos >= 0) b.replace(pos, pos+3, msg);
-		errorStream.println(b.toString());
+		errorStream.println(b);
 	}
 	
 	public void SynErr (int line, int col, int n) {
-		String s;
-		switch (n) {
-			case 0: s = "EOF expected"; break;
-			case 1: s = "ident expected"; break;
-			case 2: s = "number expected"; break;
-			case 3: s = "\"PROGRAM\" expected"; break;
-			case 4: s = "\"BEGIN\" expected"; break;
-			case 5: s = "\"END\" expected"; break;
-			case 6: s = "\".\" expected"; break;
-			case 7: s = "\"VAR\" expected"; break;
-			case 8: s = "\";\" expected"; break;
-			case 9: s = "\",\" expected"; break;
-			case 10: s = "\":\" expected"; break;
-			case 11: s = "\"ARRAY\" expected"; break;
-			case 12: s = "\"OF\" expected"; break;
-			case 13: s = "\":=\" expected"; break;
-			case 14: s = "\"IF\" expected"; break;
-			case 15: s = "\"THEN\" expected"; break;
-			case 16: s = "\"ELSIF\" expected"; break;
-			case 17: s = "\"ELSE\" expected"; break;
-			case 18: s = "\"WHILE\" expected"; break;
-			case 19: s = "\"DO\" expected"; break;
-			case 20: s = "\"READ\" expected"; break;
-			case 21: s = "\"WRITE\" expected"; break;
-			case 22: s = "\"(\" expected"; break;
-			case 23: s = "\")\" expected"; break;
-			case 24: s = "\"[\" expected"; break;
-			case 25: s = "\"]\" expected"; break;
-			case 26: s = "\"=\" expected"; break;
-			case 27: s = "\"#\" expected"; break;
-			case 28: s = "\"<\" expected"; break;
-			case 29: s = "\">\" expected"; break;
-			case 30: s = "\">=\" expected"; break;
-			case 31: s = "\"<=\" expected"; break;
-			case 32: s = "\"+\" expected"; break;
-			case 33: s = "\"-\" expected"; break;
-			case 34: s = "\"*\" expected"; break;
-			case 35: s = "\"/\" expected"; break;
-			case 36: s = "\"%\" expected"; break;
-			case 37: s = "??? expected"; break;
-			case 38: s = "invalid Type"; break;
-			case 39: s = "invalid Relop"; break;
-			case 40: s = "invalid Addop"; break;
-			case 41: s = "invalid Factor"; break;
-			case 42: s = "invalid Mulop"; break;
-			default: s = "error " + n; break;
-		}
+		String s = switch (n) {
+			case 0 -> "EOF expected";
+			case 1 -> "ident expected";
+			case 2 -> "number expected";
+			case 3 -> "\"PROGRAM\" expected";
+			case 4 -> "\"BEGIN\" expected";
+			case 5 -> "\"END\" expected";
+			case 6 -> "\".\" expected";
+			case 7 -> "\"VAR\" expected";
+			case 8 -> "\";\" expected";
+			case 9 -> "\",\" expected";
+			case 10 -> "\":\" expected";
+			case 11 -> "\"ARRAY\" expected";
+			case 12 -> "\"OF\" expected";
+			case 13 -> "\":=\" expected";
+			case 14 -> "\"IF\" expected";
+			case 15 -> "\"THEN\" expected";
+			case 16 -> "\"ELSIF\" expected";
+			case 17 -> "\"ELSE\" expected";
+			case 18 -> "\"WHILE\" expected";
+			case 19 -> "\"DO\" expected";
+			case 20 -> "\"READ\" expected";
+			case 21 -> "\"WRITE\" expected";
+			case 22 -> "\"(\" expected";
+			case 23 -> "\")\" expected";
+			case 24 -> "\"[\" expected";
+			case 25 -> "\"]\" expected";
+			case 26 -> "\"=\" expected";
+			case 27 -> "\"#\" expected";
+			case 28 -> "\"<\" expected";
+			case 29 -> "\">\" expected";
+			case 30 -> "\">=\" expected";
+			case 31 -> "\"<=\" expected";
+			case 32 -> "\"+\" expected";
+			case 33 -> "\"-\" expected";
+			case 34 -> "\"*\" expected";
+			case 35 -> "\"/\" expected";
+			case 36 -> "\"%\" expected";
+			case 37 -> "??? expected";
+			case 38 -> "invalid Type";
+			case 39 -> "invalid Relop";
+			case 40 -> "invalid Addop";
+			case 41 -> "invalid Factor";
+			case 42 -> "invalid Mulop";
+			default -> "error " + n;
+		};
 		printMsg(line, col, s);
 		count++;
 	}
@@ -453,6 +537,7 @@ class Errors {
 
 
 class FatalError extends RuntimeException {
-	public static final long serialVersionUID = 1L;
+	@Serial
+	private static final long serialVersionUID = 1L;
 	public FatalError(String s) { super(s); }
 }

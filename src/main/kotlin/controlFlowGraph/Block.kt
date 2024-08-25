@@ -103,10 +103,12 @@ class Block: Iterable<Instruction> {
 		}
 	}
 
+	override fun toString(): String = toIrPrintString()
+
 	/**
 	 * Prints the block in the style suggested by the example in the assignment description.
 	 */
-	override fun toString(): String {
+	fun toIrPrintString(): String {
 		val sb = StringBuilder()
 
 		// Head of block
@@ -114,7 +116,7 @@ class Block: Iterable<Instruction> {
 
 		// Add instructions
 		for (instr in this) {
-			sb.append("\t$instr\n")
+			sb.append("\t${instr.toIrPrintString()}\n")
 		}
 
 		return sb.toString()

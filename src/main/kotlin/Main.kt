@@ -1,7 +1,4 @@
 import controlFlowGraph.Block
-import controlFlowGraph.Constant
-import controlFlowGraph.Instruction
-import controlFlowGraph.Operation
 
 fun main(args: Array<String>) { // Assumption the path to the input file is correct
 	if (args.isEmpty()) {
@@ -23,12 +20,6 @@ fun main(args: Array<String>) { // Assumption the path to the input file is corr
 		println("No errors detected")
 	}
 
-	val b = Block()
-	println(b)
-	val instr1 = Instruction(Operation.ST, Constant(0))
-	println(instr1)
-	val instr2 = Instruction(Constant(1), Operation.CMP, Constant(2))
-	b.appendInstr(instr1)
-	b.appendInstr(instr2)
-	println(b)
+	val entryBlock = parser.entryBlock;
+	Block.iterateBlocks(entryBlock) { println(it) }
 }

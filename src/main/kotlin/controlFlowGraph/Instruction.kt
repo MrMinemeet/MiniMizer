@@ -8,6 +8,15 @@ package controlFlowGraph
  */
 // I want to keep the comments
 class Instruction: Node {
+	companion object {
+		private var curId = 0
+		fun getNewInstrId(): Int {
+			return curId++
+		}
+	}
+
+	val instrId = getNewInstrId()
+
 	/**
 	 * The instruction left of the operator
 	 */
@@ -48,7 +57,15 @@ class Instruction: Node {
 
 	constructor(operator: Operation, second: Node): this(null, operator, second)
 
-	override fun toString(): String {
-		return "$id: ${first ?: ""} $operator ${second ?: ""}"
+	init {
+		if (first == null && second == null) {
+			System.err.println("At least one of the operands must be non-null")
+		}
+	}
+
+	override fun toString() = toIrPrintString()
+
+	override fun toIrPrintString(): String {
+		return "${first?.toIrPrintString() ?: ""} $operator ${second?.toIrPrintString() ?: ""}"
 	}
 }
