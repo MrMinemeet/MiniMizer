@@ -177,8 +177,10 @@ public class Parser {
 					designator.getName(), designator.getObjType());
 
 				// Generate IR instruction and add to current block
-				Node ssa = symTab.addAsNewSSA(designator);
-				generateInstruction(ssa, Operation.ASS, exprPair.getSecond());
+				//Node ssa = symTab.addAsNewSSA(designator);
+				// TODO: Use actual SSA again
+				// TODO: Support referencing of intermediate results of certain instructions in other instructions
+				generateInstruction(designator, Operation.ASS, exprPair.getSecond());
 				
 
 			} else if (la.kind == Token.IDs.IF) {
@@ -381,7 +383,9 @@ public class Parser {
 
 			// Else, do a lookup in the symbol table
 			// TODO: Generate IR instruction node
-			return new Pair<>(symTab.find(desg.getName()), null);
+			final Obj sym = symTab.find(desg.getName());
+			// TODO: Support SSA SSA
+			return new Pair<>(sym, sym);
 		} else if (la.kind == Token.IDs.NUMBER) {
 			Get();
 			final Obj constVal = new Obj(Obj.Kind.CONSTANT, "int", SymTab.Companion.getINT_TYPE(), Integer.parseInt(t.val));
