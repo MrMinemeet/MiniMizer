@@ -81,8 +81,20 @@ class SymTab(private val parser: Parser) {
 			scope = scope.outer
 		}
 
+		if (name == "arrayAccess") {
+			return arrObj
+		}
+
 		// Not found
 		throw Error("(Line ${parser.scanner.lineNr}) Name '$name' not found in any scope")
 	}
 
+	/**
+	 * Updates the SSA and adds the object as a new SSA object
+	 * @param obj The object to add as a new SSA object
+	 */
+	fun addAsNewSSA(obj: Obj): Obj {
+		val increasedSSA = insert(obj.kind, obj.getNewSsaName(), obj.objType, obj.value)
+		return increasedSSA
+	}
 }

@@ -135,7 +135,7 @@ public class Parser {
 		}
 		Expect(Token.IDs.COLON);
 		final Struct varType = Type();
-		if (GlobalVariables.DEBUG) {
+		if (Global.DEBUG) {
 			for (Token id : ids) {
 				System.out.format("(Line %s) Inserting variable '%s' of type '%s'\n", scanner.getLineNr(), id.val, varType);
 				symTab.insert(Obj.Kind.VARIABLE, id.val, varType, 0);
@@ -177,7 +177,8 @@ public class Parser {
 					designator.getName(), designator.getObjType());
 
 				// Generate IR instruction and add to current block
-				currentBlock.appendInstr(generate(designatorNode, Operation.ASS, exprPair.getSecond()));
+				Node ssa = symTab.addAsNewSSA(designator);
+				generateInstruction(ssa, Operation.ASS, exprPair.getSecond());
 				
 
 			} else if (la.kind == Token.IDs.IF) {
@@ -299,7 +300,7 @@ public class Parser {
 			currentBlock.appendInstr((Instruction) x);
 		}
 		// TODO: Generate IR instruction node
-		return new Pair<>(term, termNode);
+		return new Pair<>(term, x);
 	}
 
 	private void Condition() {
@@ -313,11 +314,10 @@ public class Parser {
 		if (expr1.getObjType() != SymTab.Companion.getINT_TYPE() || expr2.getObjType() != SymTab.Companion.getINT_TYPE()) {
 			throw new IllegalStateException("Type mismatch in condition! Can only compare integers!");
 		}
-		System.out.printf("(Line %d) Comparing '%s' (%s) %s '%s' (%s)\n",
+		System.out.printf("(Line %d) Comparing '%s' (%s) and '%s' (%s)\n",
 			scanner.getLineNr(),
 			(expr1.getKind().equals(Obj.Kind.CONSTANT)) ? expr1.getValue() : expr1.getName(),
 			expr1.getObjType(),
-			t.val,
 			(expr2.getKind().equals(Obj.Kind.CONSTANT)) ? expr2.getValue() : expr2.getName(),
 			expr2.getObjType());
 	}
@@ -440,10 +440,10 @@ public class Parser {
 		{_x,_T,_x,_x, _x,_x,_x,_x, _x,_x,_x,_x, _x,_x,_T,_x, _x,_x,_T,_x, _T,_T,_x,_x, _x,_x,_x,_x, _x,_x,_x,_x, _x,_x,_x,_x, _x,_x,_x}
 	};
 
-	protected Instruction generate(Node first, Operation operator, Node second) {
+	protected Instruction generateInstruction(Node first, Operation operator, Node second) {
 		final Instruction instr = new Instruction(first, operator, second);
 		currentBlock.appendInstr(instr);
-		GlobalVariables.debug(instr.toIrPrintString());
+		Global.debug(() -> instr.toIrPrintString());
 		return instr;
 	}
 } // end Parser

@@ -58,9 +58,11 @@ class Instruction: Node {
 	constructor(operator: Operation, second: Node): this(null, operator, second)
 
 	init {
+		// FIXME: This is somehow always true
+		/*
 		if (first == null && second == null) {
 			System.err.println("At least one of the operands must be non-null")
-		}
+		}*/
 	}
 
 	override fun toString() = toIrPrintString()

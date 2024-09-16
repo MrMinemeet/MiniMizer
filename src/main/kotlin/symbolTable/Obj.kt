@@ -15,4 +15,10 @@ class Obj(val kind: Kind, val name: String, val objType: Struct? = null, val val
 	override fun toIrPrintString(): String {
 		return this.name
 	}
+
+	fun getNewSsaName(): String {
+		val split = name.split("#")
+		assert(split.size <= 2)
+		return if (split.size == 1) "$name#1" else "$name#${split[1].toInt() + 1}"
+	}
 }
